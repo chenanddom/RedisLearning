@@ -152,7 +152,46 @@ HSCAN key cusor [MATCH pattern] [COUNT number]
 ```
 
 
-##  ##
+## sorted set集合 ##
+
+```text
+有序集合和集合相比是一个类似但更加复杂的数据类型。这种集合中的每个元素都有一个可用于排序的权重，
+并且我们可以按顺序从集合中获取元素.
+```
+
+基本命令的使用
+
+```text
+
+1. ZADD 将数据元素的权重和名称存入集合当中
+语法规则:ZADD 集合名称 数据元素权重 数据元素名称
+例子:zadd elements 100 "a" 80 "b" 60 "d" 70 "c" 50 "f"
+注意:1.使用NX选项可以实现不更新已经存在的元素。例如 zadd elements nx 40 "g"
+     2.使用选项XX可以不想集合中增加元素的情况下更新集合。例如： zadd elements XX 45 "g"
+     
+2. ZREVRANGE 
+语法规则:ZREVRANGE 集合名称 [start Index] [end Index] WITHSCORES
+例子: zrevrange elements 0 -1 withscores
+
+3.ZINCBY 对集合元素的权重增加
+语法规则:ZINCBY 集合元素 增加的大小 元素的名称
+例子: zincrby elements 55 "f"
+
+4.ZREVRANK 查找某个元素在集合内的排名
+语法规则:ZREVRANK 集合名称 "元素名称"
+例子： zrevrank elements "f"
+
+5. ZSCORE 查看集合被某个元素的的权重的大小
+语法规则：ZSCORE 集合名称 集合元素的的名称
+例子: zscore elements "a"
+
+
+
+```
+![Sort set的使用](images/redis-sort-set.png)
+
+
+## 使用HyperLogLog ##
 
 
 
