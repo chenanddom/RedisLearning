@@ -18,6 +18,7 @@
     <module>datatype-chapter2</module>
     <module>datacharacteristics-chapter3</module>
     <module>development-chapter4</module>
+    <module>replica_chapter5</module>
 </modules>
 
     <dependencyManagement>
