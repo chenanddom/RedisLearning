@@ -19,6 +19,8 @@
     <module>datacharacteristics-chapter3</module>
     <module>development-chapter4</module>
     <module>replica_chapter5</module>
+    <module>persistence_chapter6</module>
+    <module>high_availability_cluster_chapter7</module>
 </modules>
 
     <dependencyManagement>
