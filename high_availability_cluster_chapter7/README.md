@@ -223,9 +223,155 @@ x.x.0.6:26379> sentinel set mymaster down-after-milliseconds 1000
 
 ## 配置Redis Cluster ##
 
+```text
+    在前面的例子當中，我们配置维护了一个RedisSentinel的高可用的架构。但是当Redis的数据急剧增长的时候，必须要要对这个架构进行分区。
+对于这个场景Redis从3.0开始支持了Redis-Cluster(Redis集群)是非常有用的。我们需要按照配置，测试和维护的步骤使用Redis集群实现字段的数据分片
+和高可用。
+优点： 1. 自动分割数据到不同的节点上
+       2. 整个集群的部分节点失败或者不可达的情况下能够继续处理命令 
+```
+
+注意：
+```text
+    当Redis集群运行时，每个节点都会打开两个TCP套接字。第一个套接字适用于客户端连接的标准的Redis通信协议，第二个套接字的端口时第一个端口号加上10000
+被用作实例键信息交换的通信总线。值10000是硬编码，因此端口大于55536的Redis集群节点是不能启动的。
+```
+
+
+操作步骤
+```text
+1. 每个Redis实例都自己的配置文件redis.conf。弃用集群功能需要每个redis实例准备一个配置文件，然后相应的修改IP，监听的端口和log文件的路径
+daemonize yes
+pidfile "/redis/run/redis-6379.pid"
+port 6379
+dbfilename "dump-6379.rdb"
+dir "/redis/data"
+...
+cluster-enabled yes
+cluster-config-file node6379.conf
+cluster-node-timeout 10000
+
+```
+
+示例说明
+
+```text
+由于没有足够的服务器去演示，这里使用docker来部署集群模式，确保服务能够以多实例运行。
+节点分别为:
+
+*.*.*.7:6388@16388 master - 0 1589851954741 5 connected 13654-16383
+*.*.*.5:6386@16386 master - 0 1589851952000 3 connected 8194-10923
+*.*.*.2:6383@16383 myself,master - 0 1589851949000 1 connected 0-2730
+*.*.*.4:6385@16385 master - 0 1589851953000 2 connected 5462-8193
+*.*.*.6:6387@16387 master - 0 1589851952000 4 connected 10924-13653
+*.*.*.3:6384@16384 master - 0 1589851954000 0 connected 2731-5461**
+```
+redis集群配置文件为
+
+[1.redis集群配置文件](images/config.tar.gz)
+
+[2.Dockerfile](images/Dockerfile)
+
+[3.docker-compose.yml](images/docker-compose.yml)
 
 
 
+准备好了上面的工作之后就可以开始去创建redis集群了。
+```text
+-------------------------------------------------------------------------------------------
+redis_cluster_1   /bin/sh -c /home/redis/src ...   Up      6379/tcp, 0.0.0.0:6383->6383/tcp
+redis_cluster_2   /bin/sh -c /home/redis/src ...   Up      6379/tcp, 0.0.0.0:6384->6384/tcp
+redis_cluster_3   /bin/sh -c /home/redis/src ...   Up      6379/tcp, 0.0.0.0:6385->6385/tcp
+redis_cluster_4   /bin/sh -c /home/redis/src ...   Up      6379/tcp, 0.0.0.0:6386->6386/tcp
+redis_cluster_5   /bin/sh -c /home/redis/src ...   Up      6379/tcp, 0.0.0.0:6387->6387/tcp
+redis_cluster_6   /bin/sh -c /home/redis/src ...   Up      6379/tcp, 0.0.0.0:6388->6388/tcp
+```
+
+此时集群的所有节点都已经起来了，但是此时redis的节点之间还是无法正常的通信的需要有一个节点知道所有的其他节点的信息之后会将这些信息，
+此时它也会项其他已知的节点传播它知道的节点的信息(这个就是redis文档中提到的心跳包中的exchange-of-gossip),这样其他节点就可以互相的通信了。
+1. 发现的命令使用了redis-cli 执行 CLUSTER MEET，使用示例如下:
+```shell script
+
+redis/src/redis-cli -h *.*.*.2 -p 6383 CLUSTER MEET *.*.*.3 6384
+
+redis/src/redis-cli -h *.*.*.2 -p 6383 CLUSTER MEET *.*.*.4 6385
+
+redis/src/redis-cli -h *.*.*.2 -p 6383 CLUSTER MEET *.*.*.5 6386
+
+redis/src/redis-cli -h *.*.*.2 -p 6383 CLUSTER MEET *.*.*.6 6387
+
+redis/src/redis-cli -h *.*.*.2 -p 6383 CLUSTER MEET *.*.*.7 6388
+
+```
+
+2. 分配数据槽
+我们额可以在一台主机上使用redis-cli,通过指定主机和端口号的方式进行
+
+```shell script
+for i in{0..2730};do redis/src/redis-cli -h *.*.*.2 -p 6383 CLUSTER ADDSLOTS $i;DONE
+ok
+...
+
+for i in{2731..5461};do redis/src/redis-cli -h *.*.*.3 -p 6384 CLUSTER ADDSLOTS $i;DONE
+ok
+...
+
+for i in{5462..8193};do redis/src/redis-cli -h *.*.*.4 -p 6385 CLUSTER ADDSLOTS $i;DONE
+ok
+...
+
+for i in{8194..10923};do redis/src/redis-cli -h *.*.*.5 -p 6386 CLUSTER ADDSLOTS $i;DONE
+ok
+...
+
+for i in{10924..13653};do redis/src/redis-cli -h *.*.*.6 -p 6387 CLUSTER ADDSLOTS $i;DONE
+ok
+...
+
+for i in{13654..16383};do redis/src/redis-cli -h *.*.*.7 -p 6388 CLUSTER ADDSLOTS $i;DONE
+ok
+...
+
+```
+注意：我们指定的数据槽只能是在0-16383的范围内，否则会出现错误
+
+
+执行CLUSTER NODES:
+
+````shell script
+*.*.*.7:6388@16388 master - 0 1589851954741 5 connected 13654-16383
+*.*.*.5:6386@16386 master - 0 1589851952000 3 connected 8194-10923
+*.*.*.2:6383@16383 myself,master - 0 1589851949000 1 connected 0-2730
+*.*.*.4:6385@16385 master - 0 1589851953000 2 connected 5462-8193
+*.*.*.6:6387@16387 master - 0 1589851952000 4 connected 10924-13653
+*.*.*.3:6384@16384 master - 0 1589851954000 0 connected 2731-5461**
+
+````
+
+
+执行CLUSTER INFO:
+
+```shell script
+cluster_state:ok
+cluster_slots_assigned:16384
+cluster_slots_ok:16384
+cluster_slots_pfail:0
+cluster_slots_fail:0
+cluster_known_nodes:6
+cluster_size:6
+cluster_current_epoch:5
+cluster_my_epoch:1
+cluster_stats_messages_ping_sent:77240
+cluster_stats_messages_pong_sent:73688
+cluster_stats_messages_meet_sent:6
+cluster_stats_messages_sent:150934
+cluster_stats_messages_ping_received:73687
+cluster_stats_messages_pong_received:77246
+cluster_stats_messages_meet_received:1
+cluster_stats_messages_received:150934
+
+```
+此时使用edis/src/redis-cli -c -h *.*.*.2 -p 6383就可以以集群模式连接到redis集群操作集群了。
 
 ## 测试Redis Cluster ##
 
@@ -234,3 +380,36 @@ x.x.0.6:26379> sentinel set mymaster down-after-milliseconds 1000
 
 
 ## 管理Redis Cluster ##
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

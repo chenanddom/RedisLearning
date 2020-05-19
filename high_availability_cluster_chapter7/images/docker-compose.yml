@@ -1,0 +1,66 @@
+version: "3"
+services:
+  redis_cluster_1:
+    image: chendom/redis:v1.0.3
+    ports:
+      - "6383:6383"
+    container_name: redis_cluster_1    
+    networks:
+      default:
+        ipv4_address: 172.20.0.2
+    volumes:
+      - "/chendom/redis/redisconf/node_1:/home/node"
+  redis_cluster_2:
+    image: chendom/redis:v1.0.3
+    ports:
+      - "6384:6384"
+    container_name: redis_cluster_2
+    networks:
+      default:
+        ipv4_address: 172.20.0.3
+    volumes:
+      - "/chendom/redis/redisconf/node_2:/home/node"   
+  redis_cluster_3:
+    image: chendom/redis:v1.0.3
+    ports:
+      - "6385:6385"
+    container_name: redis_cluster_3
+    networks:
+      default:
+        ipv4_address: 172.20.0.4
+    volumes:
+      - "/chendom/redis/redisconf/node_3:/home/node"
+  redis_cluster_4:
+    image: chendom/redis:v1.0.3
+    ports:
+      - "6386:6386"
+    container_name: redis_cluster_4
+    networks:
+      default:
+        ipv4_address: 172.20.0.5
+    volumes:
+      - "/chendom/redis/redisconf/node_4:/home/node"
+  redis_cluster_5:
+    image: chendom/redis:v1.0.3
+    ports:
+      - "6387:6387"
+    container_name: redis_cluster_5
+    networks:
+      default:
+        ipv4_address: 172.20.0.6
+    volumes:
+      - "/chendom/redis/redisconf/node_5:/home/node"
+  redis_cluster_6:
+    image: chendom/redis:v1.0.3
+    ports:
+      - "6388:6388"
+    container_name: redis_cluster_6
+    networks:
+      default:
+        ipv4_address: 172.20.0.7
+    volumes:
+      - "/chendom/redis/redisconf/node_6:/home/node"
+networks:
+  default:
+    external:
+      name: redis_network  
