@@ -21,6 +21,7 @@
     <module>replica_chapter5</module>
     <module>persistence_chapter6</module>
     <module>high_availability_cluster_chapter7</module>
+    <module>production-environment-deployment-chapter8</module>
 </modules>
 
     <dependencyManagement>
