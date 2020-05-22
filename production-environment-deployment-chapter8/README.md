@@ -124,8 +124,60 @@ open files                      (-n) 1024
 ```
 
 
-
 ### 工作原理
+
+```text
+
+Redis在后台持久化时利用了写时复制(Copy-On-Write,COW)的优点。这意味者在Redis中不需要使用于数据集大小相同的空闲内存。但是。Linux在默认的情况下可能会检查是否
+有足够的内存来复制父进程的所以内存项，而这个可能导致OOM(Out of Memory)而奔溃。如果出现这个情况会在运行的日志发现如下的错误:
+
+Redis Error - Can't save in background : fork: Cannot allocate memory
+
+仔细检查发现如下的内容：
+
+WARNING overcommit_memory is set to 0! Background save may fail under low memory condition. 
+To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or 
+run the command 'sysctl vm.overcommit_memory=1'
+
+要解决这个问题就是需要我们将overcommit_memory设置为1，标识当一个程序调用，如malloc()等函数分配内存时，即使系统知道美誉足够的内存空间函数
+也会执行成功。第二个内存相关额配置时vm.swappiness，该参数定义了Linux内核将内存中的内容拷贝到交换分区的大小(及频率)。swappiness参数的值越大
+，内核在进行内存交换的时候就会越来越激进。
+
+
+    启用交换内存后，Redis可能会尝试访问磁盘中的内存页。这将导致Redis进程被磁盘I/O操作(可能时一个缓慢的过程)阻塞。我们通常需要充分发挥Redis的处理能力，因此
+被交换分区拖慢Redis的速度时不可取的。故而，我们总是建议将vm.swappiness设置为0，值得一提的是，将这个参数设置0对于不同的内核版本来书含义是不同的。
+    对于Redis首先应该尽可能避免使用swappiness。此外，在Redis实例没有足够地内存可以使用时，我们希望Redis进程被杀死，也不希望他被交换分区拖慢。如果
+Redis服务能够做快速失败(fail-fast)，那么HA或者集群机制就能够妥善处理奔溃地情况。因此，无论Linux内核时什么版本，我们总是建议将这个参数设置为0.
+
+
+    透明内存大页的功能可能会导致持久化的子进程创建缓慢。因此，我们建议禁用该功能，否则实例在启动的时候就会看到提示：
+
+WARNING you have Transparent Huge Pages (THP) support enabled in your kernel. This will create latency and memory usage issues with Redis. 
+To fix this issue run the command 'echo never > /sys/kernel/mm/transparent_hugepage/enabled' as root, and add it to your /etc/rc.local in 
+order to retain the setting after a reboot. Redis must be restarted after THP is disabled.
+我们可以使用echo never > /sys/kernel/mm/transparent_hugepage/enabled关闭让
+
+
+    在网络方面的参数，如net.core.somaxconn和net.ipv4.tcp_max_syn_backlog设置为比默认值128大的65535.net.core.somaxconn这个参数设置传递给listen
+函数的backlog参数的上限，net.ipv4.tcp_max_syn_backlog设置了挂起连接的最大队列的长度。在Redis中有一个默认值为511的选项tcp-backlog;将这些值设置大一点可以有TCP连接
+如果net.core,somaxconn的值设置高于net.ipv4.tcp_max_syn_backlog，那么实例启动时会收到如下的警告：
+
+WARNING: The TCP backlog setting of 511 cannot be enforced because /proc/sys/net/core/somaxconn 
+is set to the lower value of 128.
+
+
+
+  我们需要设置一个进程能够打开的最大文件数。我们需要确保这个操作系统的值高于Redis的maxclients选项。如果这个参数不满足上述的条件，那么我们的Redis启动之后会收到  
+如下的警告：
+You requested maxclients of 10000 requiring at least 10032 max file
+descriptors. Redis can't set maximum open files to 10032 because of OS
+error: Operation not permitted. Current maximum open files is 4096.
+maxclients has been reduced to 4064 to compensate for low ulimit. If
+you need higher maxclients increase 'ulimit -n'.
+
+
+```
+
 
 
 
