@@ -180,5 +180,87 @@ you need higher maxclients increase 'ulimit -n'.
 
 
 
+## Redis的安全配置
+
+
+```text
+
+1. 修稿配置文件中的bind 和port来更新绑定的IP地址和端口号：
+    bind 127.0.0.1 192.168.0.31
+    port 36379
+
+2. 不要忘记更新主从复制和Sentinel配置中的相应的参数:
+    slaveof 192.168.0.31
+    snetinel monitor mymaster 192.168.0.31 36379
+
+3. 我们可以让Redis不监听任何网络接口，而监听Unix域套接字。这样只有拥有套接字的访问权限的本地客户端才可以访问Redis.
+    1.我们可以在配置文件中设置unixsocket和unixsocketperm参数，然后将port为0使得Redis只监听unix套接字.
+        port 0
+        unixsocket /var/run/redis/redis.sock
+        unixsocketprm 766
+    2. 我们可以使用redis-cli -s <socket>链接到监听在Unix套接字的Redis服务器：
+        redis-cli -s /var/run/redis/redis.sock
+        redis /var/run/redis/redis.sock>
+
+4. 通过密码验证来保护Redis通常是一个良好的时间。Redis提供了一个分厂简单的验证机制来防止授权的访问。
+    1. 需要在redis.conf配置requirepass添加明文秘钥即可
+        requirepass 123456
+    2.  要访问一个启用了身份验证的redis服务器，需要使用AUTH命令
+        
+    
+
+
+
+
+
+```
+
+![redis客户端访问启用认证的redis服务](images/reids-security.png)
+
+
+
+
+
+## 配置客户端连接选项
+
+```text
+1. 如果要配置客户端的网络参数，将以下的内容添加到redis.conf即可
+    timeout 0
+    tcp-backlog 511
+2. 如果要配置的Redis实例的最大客户端数量和tcp-keepalive时间，将一下的内容添加到Redis和Sentinel的配置文件即可
+    maxclients 10000
+    tcp-keepalive 300
+3. 如果要配置客户端的缓冲区参数，在Redis.conf配置文件中添加以下的内容即可：
+    client-output-buffer-limit normal 0 0 0
+    client-output-buffer limit salve 512mb 256mb 60
+    client-output-buffer-limit pubsub 32mb 8mb 60
+
+```
+工作原理
+
+```text
+
+    我们为Redis实例设置的两个参数都与Redis和客户端之间的网络连接相关。第一个选项是timeiout，表示服务端将在客户端空闲N秒后关闭连接。实际上，指定的timeout会被传递给setsockopt()
+来设置SO_SNDTIMEOUT;tcp-bakclog,这个参数设置用于挂起套接字请求队列的大小，在Linux上部署Redis的案例中，我们介绍了内核参数somaxconn.我们应该确保tcp-backlog的值小于somaxconn.
+在真实的生产环境中，大多数情况下，我们将其设置为一个高于默认中10000的值。
+    maxclients和tcp-keepalive选项对Redis实例和Sentinel都有效。我们强烈建议读者确保为Redis实例以及Sentinel服务设置这两个参数。maxclients选项来限制来自客户端的最大连接数，一旦超过
+最大的连接数，客户端将收到来自服务端的错误的提示 ERR max number of clients reached;tcp-keepalive选项，如果将该参数设置为了非零值，那么服务端将按照指定的时间间隔发送TCP ACK来通知网络设备在
+此期间的链接仍然获取，如果客户端没有响应TCP活跃的的消息，那么服务器将客户端视为下线并链接关闭。当客户端和Redis服务端之间存在硬件防火将的，这个选项非常有用(避免防火墙在将超时断开之后，服务端和客户端
+没有收到通知而无法释放链接)。
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
 
 
